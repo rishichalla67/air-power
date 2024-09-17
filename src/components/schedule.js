@@ -44,7 +44,11 @@ function EventItem({ event, onDelete, onEdit }) {
             <p><strong>Office #:</strong> {event.officeNumber}</p>
             <p><strong>Filter Size:</strong> {event.filterSize}</p>
             <p><strong>Condition:</strong> {event.condition}</p>
-            <p><strong>Assigned To:</strong> {event.assignTo}</p>
+            <p><strong>Assigned To:</strong> {
+                event.assignTo && typeof event.assignTo === 'object' 
+                    ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
+                    : event.assignTo || 'Not assigned'
+            }</p>
             <p><strong>Last Maintenance Date:</strong> {event.lastMaintenanceDate}</p>
             <p><strong>Maintenance Frequency:</strong> {event.maintenanceFrequency} days</p>
             <p><strong>Next Maintenance Date:</strong> {event.nextMaintenanceDate}</p>
@@ -63,7 +67,7 @@ function Schedule() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showUpdateModal, setShowUpdateModal] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(new Date());
     const [newEvent, setNewEvent] = useState({
         title: '',
         address: '',
@@ -71,7 +75,7 @@ function Schedule() {
         officeNumber: '',
         filterSize: '',
         condition: '',
-        assignTo: '',
+        assignTo: { firstName: '', lastName: '' },
         lastMaintenanceDate: '',
         maintenanceFrequency: '',
         nextMaintenanceDate: '',
@@ -92,14 +96,13 @@ function Schedule() {
         // Query for all events (for the calendar)
         const allEventsQuery = query(eventsCollection, orderBy('date'));
         
-        // Query for user-specific events (for the list below the calendar)
-        const userEventsQuery = userData.isAdmin
-            ? allEventsQuery
-            : query(
-                eventsCollection,
-                where("assignTo", "==", currentUser.displayName || currentUser.email),
-                orderBy('date')
-            );
+        // Query for user-specific events
+        const userEventsQuery = query(
+            eventsCollection,
+            where("assignTo.firstName", "==", userData.firstName),
+            where("assignTo.lastName", "==", userData.lastName),
+            orderBy('date')
+        );
 
         const unsubscribeAllEvents = onSnapshot(allEventsQuery, (snapshot) => {
             const fetchedEvents = snapshot.docs.map(doc => ({
@@ -136,7 +139,7 @@ function Schedule() {
             unsubscribeAllEvents();
             unsubscribeUserEvents();
         };
-    }, [currentUser, userData]);
+    }, [userData.firstName, userData.lastName]);
 
     const sortedEvents = userEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
     const completedEvents = sortedEvents.filter(event => event.completed);
@@ -179,7 +182,7 @@ function Schedule() {
             officeNumber: '',
             filterSize: '',
             condition: '',
-            assignTo: userData.isAdmin ? '' : currentUser.displayName || currentUser.email,
+            assignTo: { firstName: '', lastName: '' },
             lastMaintenanceDate: '',
             maintenanceFrequency: '',
             nextMaintenanceDate: '',
@@ -198,7 +201,8 @@ function Schedule() {
         setNewEvent(prev => {
             const updatedEvent = {
                 ...prev,
-                [name]: type === 'checkbox' ? checked : value
+                [name]: type === 'checkbox' ? checked : 
+                    name === 'assignTo' ? JSON.parse(value) : value
             };
 
             // Calculate next maintenance date if both last maintenance date and frequency are set
@@ -256,7 +260,10 @@ function Schedule() {
                 const baseEvent = {
                     ...newEvent,
                     date: selectedDate.toISOString(),
-                    assignTo: userData.isAdmin ? newEvent.assignTo : (currentUser.displayName || currentUser.email),
+                    assignTo: userData.isAdmin ? newEvent.assignTo : {
+                        firstName: userData.firstName,
+                        lastName: userData.lastName
+                    },
                 };
                 await addDoc(eventsCollection, baseEvent);
                 
@@ -314,7 +321,7 @@ function Schedule() {
             officeNumber: '',
             filterSize: '',
             condition: '',
-            assignTo: '',
+            assignTo: { firstName: '', lastName: '' },
             lastMaintenanceDate: '',
             maintenanceFrequency: '',
             nextMaintenanceDate: '',
@@ -331,7 +338,10 @@ function Schedule() {
                 const updatedEvent = {
                     ...newEvent,
                     date: selectedDate.toISOString(),
-                    assignTo: userData.isAdmin ? newEvent.assignTo : (currentUser.displayName || currentUser.email),
+                    assignTo: userData.isAdmin ? newEvent.assignTo : {
+                        firstName: userData.firstName,
+                        lastName: userData.lastName
+                    },
                 };
                 await updateDoc(eventRef, updatedEvent);
                 handleUpdateModalClose();
@@ -361,7 +371,11 @@ function Schedule() {
                         <li key={event.id} className="bg-white rounded-lg shadow p-4">
                             <h4 className="text-lg font-semibold">{event.title}</h4>
                             <p className="text-gray-600">{new Date(event.date).toLocaleDateString()}</p>
-                            <p className="text-gray-600">Assigned to: {event.assignTo}</p>
+                            <p className="text-gray-600">Assigned to: {
+                                event.assignTo && typeof event.assignTo === 'object' 
+                                    ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
+                                    : event.assignTo || 'Not assigned'
+                            }</p>
                             <div className="mt-2">
                                 <button
                                     onClick={() => handleEditClick(event)}
@@ -387,7 +401,7 @@ function Schedule() {
 
     const renderWorkerDropdown = () => {
         if (!userData.isAdmin) {
-            return null; // Don't render anything for non-admin users
+            return null;
         }
 
         return (
@@ -395,13 +409,13 @@ function Schedule() {
                 <h3 className="text-lg font-semibold mb-2">Assignment</h3>
                 <select
                     name="assignTo"
-                    value={newEvent.assignTo}
+                    value={JSON.stringify(newEvent.assignTo)}
                     onChange={handleInputChange}
                     className="w-full p-2 border rounded"
                 >
-                    <option value="">Select a worker</option>
+                    <option value={JSON.stringify({ firstName: '', lastName: '' })}>Select a worker</option>
                     {users.map(user => (
-                        <option key={user.id} value={user.firstName}>
+                        <option key={user.id} value={JSON.stringify({ firstName: user.firstName, lastName: user.lastName })}>
                             {user.firstName} {user.lastName}
                         </option>
                     ))}
@@ -456,15 +470,15 @@ function Schedule() {
                             "Your Events"
                         )}
                     </h2>
-                    {renderEventList(upcomingEvents, "Upcoming Events")}
-                    {renderEventList(draftEvents, "Draft Events")}
-                    {renderEventList(completedEvents, "Completed Events")}
+                    {renderEventList(userEvents.filter(event => !event.completed && new Date(event.date) >= new Date()), "Upcoming Events")}
+                    {renderEventList(userEvents.filter(event => !event.completed && new Date(event.date) < new Date()), "Draft Events")}
+                    {renderEventList(userEvents.filter(event => event.completed), "Completed Events")}
                 </div>
             </div>
 
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto">
-                    <div className={`bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
+                    <div className={`bg-white p-5 rounded-lg w-[85%] sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
                         {userData.isAdmin && (
                             <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-t-lg mb-4">
                                 <p className="font-bold">Admin Mode</p>
@@ -477,7 +491,7 @@ function Schedule() {
                         >
                             <XMarkIcon className="h-6 w-6" />
                         </button>
-                        <h2 className="text-xl mb-4">Create Event for {selectedDate.toDateString()}</h2>
+                        <h2 className="text-xl mb-4">Create Event for {selectedDate ? selectedDate.toDateString() : 'Selected Date'}</h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <h3 className="text-lg font-semibold mb-2">Event Details</h3>
@@ -623,7 +637,7 @@ function Schedule() {
                         >
                             <XMarkIcon className="h-6 w-6" />
                         </button>
-                        <h2 className="text-xl mb-4">Events for {selectedDate.toDateString()}</h2>
+                        <h2 className="text-xl mb-4">Events for {selectedDate ? selectedDate.toDateString() : 'Selected Date'}</h2>
                         {selectedEvents.length > 0 ? (
                             <ul className="list-none p-0">
                                 {selectedEvents.map(event => (
@@ -658,7 +672,7 @@ function Schedule() {
             )}
             {showUpdateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto">
-                    <div className={`bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
+                    <div className={`bg-white p-5 rounded-lg w-[85%] sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
                         {userData.isAdmin && (
                             <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-t-lg mb-4">
                                 <p className="font-bold">Admin Mode</p>
@@ -671,7 +685,7 @@ function Schedule() {
                         >
                             <XMarkIcon className="h-6 w-6" />
                         </button>
-                        <h2 className="text-xl mb-4">Update Event for {selectedDate.toDateString()}</h2>
+                        <h2 className="text-xl mb-4">Update Event for {selectedDate ? selectedDate.toDateString() : 'Selected Date'}</h2>
                         <form onSubmit={handleUpdate} className="space-y-4">
                             <input
                                 type="text"
