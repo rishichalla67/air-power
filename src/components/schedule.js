@@ -93,10 +93,10 @@ function Schedule() {
         const eventsCollection = collection(db, 'events');
         const usersCollection = collection(db, 'users');
 
-        // Query for all events (for the calendar)
+        // Query for all events (for the calendar and admin view)
         const allEventsQuery = query(eventsCollection, orderBy('date'));
         
-        // Query for user-specific events
+        // Query for user-specific events (for non-admin users)
         const userEventsQuery = query(
             eventsCollection,
             where("assignTo.firstName", "==", userData.firstName),
@@ -114,15 +114,18 @@ function Schedule() {
             console.error("Error fetching all events: ", error);
         });
 
-        const unsubscribeUserEvents = onSnapshot(userEventsQuery, (snapshot) => {
-            const fetchedEvents = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            }));
-            setUserEvents(fetchedEvents);
-        }, (error) => {
-            console.error("Error fetching user events: ", error);
-        });
+        let unsubscribeUserEvents = () => {};
+        if (!userData.isAdmin) {
+            unsubscribeUserEvents = onSnapshot(userEventsQuery, (snapshot) => {
+                const fetchedEvents = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                }));
+                setUserEvents(fetchedEvents);
+            }, (error) => {
+                console.error("Error fetching user events: ", error);
+            });
+        }
 
         const fetchUsers = async () => {
             const usersSnapshot = await getDocs(usersCollection);
@@ -139,7 +142,7 @@ function Schedule() {
             unsubscribeAllEvents();
             unsubscribeUserEvents();
         };
-    }, [userData.firstName, userData.lastName]);
+    }, [userData.firstName, userData.lastName, userData.isAdmin]);
 
     const sortedEvents = userEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
     const completedEvents = sortedEvents.filter(event => event.completed);
@@ -470,9 +473,18 @@ function Schedule() {
                             "Your Events"
                         )}
                     </h2>
-                    {renderEventList(userEvents.filter(event => !event.completed && new Date(event.date) >= new Date()), "Upcoming Events")}
-                    {renderEventList(userEvents.filter(event => !event.completed && new Date(event.date) < new Date()), "Draft Events")}
-                    {renderEventList(userEvents.filter(event => event.completed), "Completed Events")}
+                    {renderEventList(
+                        userData.isAdmin ? allEvents.filter(event => !event.completed && new Date(event.date) >= new Date()) : userEvents.filter(event => !event.completed && new Date(event.date) >= new Date()),
+                        "Upcoming Events"
+                    )}
+                    {renderEventList(
+                        userData.isAdmin ? allEvents.filter(event => !event.completed && new Date(event.date) < new Date()) : userEvents.filter(event => !event.completed && new Date(event.date) < new Date()),
+                        "Draft Events"
+                    )}
+                    {renderEventList(
+                        userData.isAdmin ? allEvents.filter(event => event.completed) : userEvents.filter(event => event.completed),
+                        "Completed Events"
+                    )}
                 </div>
             </div>
 
