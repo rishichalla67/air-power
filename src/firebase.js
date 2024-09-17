@@ -19,3 +19,18 @@ const app = firebase.initializeApp({
 export const auth = app.auth();
 export const db = app.firestore();
 export default app;
+
+export const getUserData = async (uid) => {
+    try {
+      const doc = await db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        return doc.data();
+      } else {
+        console.log('No such document!');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting user data:', error);
+      return null;
+    }
+};

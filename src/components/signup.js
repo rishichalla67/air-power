@@ -1,210 +1,150 @@
-import React, { useRef, useState, useEffect } from "react";
-import { LockClosedIcon } from "@heroicons/react/solid";
+import React, { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { db } from "../firebase";
-import { User } from "../Classes/User";
 
 export default function Signup() {
-  const emailRef = useRef();
-  const passwordRef = useRef();
-  const passwordConfirmRef = useRef();
-  const usernameRef = useRef();
   const { signup } = useAuth();
-  const [allUsernames, setAllUsers] = useState();
   const navigate = useNavigate();
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [usernameTaken, setUsernameTaken] = useState("white");
 
-  async function fetchAllUsers() {
-    const snapshot = await db.collection("users").get();
-    if (snapshot.docs.length > 0) {
-      const tempUsers = [];
-      snapshot.docs.forEach((user) => {
-        tempUsers.push(user.data().username ? user.data().username : "");
-      });
-      setAllUsers(tempUsers);
-    }
-  }
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    employeeID: '',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    isAdmin: false
+  });
 
-  useEffect(() => {
-    if (!allUsernames) {
-      fetchAllUsers();
-    }
-  }, [allUsernames]);
-
-  const createUser = (emailValue, usernameValue) => {
-    db.collection("users")
-      .add({
-        email: emailValue,
-        username: usernameValue,
-      })
-      .then((docRef) => {
-        db.collection("users").doc(docRef.id).update(User(docRef.id));
-      })
-      .catch((err) => setError(err.message));
-  };
-
-  const validateUsername = (e) => {
-    const usernameToValidate = e.target.value.toLowerCase();
-    if (allUsernames.includes("@" + usernameToValidate)) {
-      setUsernameTaken("red-400");
-      setError(`@${usernameToValidate} is taken, please choose another`);
-    } else {
-      setUsernameTaken("white");
-      if (error.includes("@")) {
-        setError("");
-      }
-    }
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   async function handleSubmit(e) {
     e.preventDefault();
 
-    const usernameInput = "@" + usernameRef.current.value.toLowerCase();
-
-    // Validation
-    if (allUsernames.includes(usernameInput)) {
-      return setError(
-        "Sorry. " + usernameInput + " is taken. Please try another username!"
-      );
-    }
-    if (passwordRef.current.value !== passwordConfirmRef.current.value) {
-      return setError("Passwords do not match!");
-    }
-
-    setError("");
-    setLoading(true);
     try {
-      await signup(emailRef.current.value, passwordRef.current.value);
-      createUser(emailRef.current.value, usernameInput);
+      setError("");
+      setLoading(true);
+      const { email, password, ...userData } = formData;
+      await signup(email, password, userData);
       navigate("/");
-    } catch (err) {
-      setError(err.message);
+    } catch (error) {
+      setError("Failed to create an account: " + error.message);
     }
     setLoading(false);
   }
 
-  if (allUsernames === undefined) {
-    return (
-      <div className="flex items-center justify-center space-x-2">
-        <div
-          className="spinner-border animate-spin inline-block w-12 h-12 border-4 rounded-full"
-          role="status"
-        >
-          <span className="visually-hidden"></span>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-900">
-      <div className="max-w-md w-full space-y-8">
+    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-500 to-purple-600">
+      <div className="max-w-2xl w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
         <div>
-          <h2 className="mt-6 text-center text-4xl font-extrabold text-black">
-            Sign Up
+          <h2 className="text-center text-3xl font-extrabold text-gray-900">
+            Onboard New Worker
           </h2>
-          <p className="mt-2 text-center text-sm text-black">
-            Already have an account?{" "}
-            <a
-              href="/login"
-              className="font-medium text-indigo-300 hover:text-indigo-700"
-            >
-              Log in here!
-            </a>
-          </p>
         </div>
         {error && (
-          <div role="alert">
-            <div className="bg-red-500 text-white font-bold rounded-t px-4 py-2">
-              Error
-            </div>
-            <div className="border border-t-0 border-red-400 rounded-b bg-red-100 px-4 py-3 text-red-700">
-              <p>{error}</p>
-            </div>
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error!</strong>
+            <span className="block sm:inline"> {error}</span>
           </div>
         )}
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <input type="hidden" name="remember" defaultValue="true" />
           <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="username-signup" className="sr-only">
-                Username
-              </label>
-              <input
-                id="username"
-                ref={usernameRef}
-                onChange={validateUsername}
-                required
-                className={`appearance-none rounded-none relative block w-full px-3 py-2 border bg-${usernameTaken} border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Username"
-              />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Personal Information</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <InputField name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
+              <InputField name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
             </div>
-            <div className="pt-2">
-              <label htmlFor="email-address-signup" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                ref={emailRef}
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-              />
+            <InputField 
+              name="email" 
+              type="email" 
+              placeholder="Email address" 
+              value={formData.email} 
+              onChange={handleChange} 
+              autoComplete="off" 
+            />
+            <InputField 
+              name="password" 
+              type="text" 
+              placeholder="Temporary Password" 
+              value={formData.password} 
+              onChange={handleChange} 
+              autoComplete="off" 
+            />
+            <InputField name="employeeID" placeholder="Employee ID" value={formData.employeeID} onChange={handleChange} />
+          </div>
+
+          <div className="rounded-md shadow-sm -space-y-px mt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Address</h3>
+            <InputField name="street" placeholder="Street Address" value={formData.street} onChange={handleChange} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <InputField name="city" placeholder="City" value={formData.city} onChange={handleChange} />
+              <InputField name="state" placeholder="State" value={formData.state} onChange={handleChange} />
             </div>
-            <div className="pt-2">
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                ref={passwordRef}
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-              />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <InputField name="postalCode" placeholder="Postal Code" value={formData.postalCode} onChange={handleChange} />
+              <InputField name="country" placeholder="Country" value={formData.country} onChange={handleChange} />
             </div>
-            <div className="pt-2">
-              <label htmlFor="password-confirmation" className="sr-only">
-                Password Confirmation
-              </label>
-              <input
-                id="password-confirmation"
-                name="password-confirmation"
-                type="password"
-                ref={passwordConfirmRef}
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Confirm Password"
-              />
-            </div>
+          </div>
+
+          <div className="flex items-center mt-4">
+            <input
+              id="isAdmin"
+              name="isAdmin"
+              type="checkbox"
+              checked={formData.isAdmin}
+              onChange={handleChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="isAdmin" className="ml-2 block text-sm text-gray-900">
+              Admin User
+            </label>
           </div>
 
           <div>
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               disabled={loading}
             >
-              <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-                <LockClosedIcon
-                  className="h-5 w-5 text-indigo-500 group-hover:text-indigo-400"
-                  aria-hidden="true"
-                />
-              </span>
-              Sign Up
+              {loading ? "Creating..." : "Create User"}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function InputField({ name, type = "text", placeholder, value, onChange, autoComplete }) {
+  return (
+    <div className="mb-4">
+      <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
+        {placeholder}
+      </label>
+      <input
+        id={name}
+        name={name}
+        type={type}
+        required
+        className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+        autoComplete={autoComplete}
+      />
     </div>
   );
 }
