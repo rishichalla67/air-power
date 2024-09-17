@@ -33,7 +33,7 @@ export default function Login() {
           <h2 className="mt-6 text-center text-4xl font-extrabold text-red-500">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-black">
+          {/* <p className="mt-2 text-center text-sm text-black">
             Or{" "}
             <a
               href="/signup"
@@ -41,7 +41,7 @@ export default function Login() {
             >
               Join For Free Today!
             </a>
-          </p>
+          </p> */}
         </div>
         {error && (
           <div role="alert">
