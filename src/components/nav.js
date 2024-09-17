@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import logo from '../assets/ap_logo.png'; // Make sure to add your logo file to the assets folder
 
 function Nav() {
     const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +24,9 @@ function Nav() {
     return (
         <nav className="bg-blue-900 p-4 relative">
             <div className="container mx-auto flex justify-between items-center">
-                <Link to="/" className="text-white text-2xl font-bold">AP</Link>
+                <Link to="/" className="flex items-center">
+                    <img src={logo} alt="AP Logo" className="h-4 w-auto" /> {/* Adjusted height to h-4 */}
+                </Link>
                 
                 {/* Hamburger menu for mobile */}
                 <div className="md:hidden">
