@@ -256,6 +256,7 @@ function Schedule() {
                 const baseEvent = {
                     ...newEvent,
                     date: selectedDate.toISOString(),
+                    assignTo: userData.isAdmin ? newEvent.assignTo : (currentUser.displayName || currentUser.email),
                 };
                 await addDoc(eventsCollection, baseEvent);
                 
@@ -327,10 +328,12 @@ function Schedule() {
         if (eventToUpdate && newEvent.title) {
             try {
                 const eventRef = doc(db, 'events', eventToUpdate.id);
-                await updateDoc(eventRef, {
+                const updatedEvent = {
                     ...newEvent,
                     date: selectedDate.toISOString(),
-                });
+                    assignTo: userData.isAdmin ? newEvent.assignTo : (currentUser.displayName || currentUser.email),
+                };
+                await updateDoc(eventRef, updatedEvent);
                 handleUpdateModalClose();
                 showNotification('Event updated successfully', 'success');
             } catch (error) {
@@ -381,6 +384,31 @@ function Schedule() {
             )}
         </div>
     );
+
+    const renderWorkerDropdown = () => {
+        if (!userData.isAdmin) {
+            return null; // Don't render anything for non-admin users
+        }
+
+        return (
+            <div>
+                <h3 className="text-lg font-semibold mb-2">Assignment</h3>
+                <select
+                    name="assignTo"
+                    value={newEvent.assignTo}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border rounded"
+                >
+                    <option value="">Select a worker</option>
+                    {users.map(user => (
+                        <option key={user.id} value={user.firstName}>
+                            {user.firstName} {user.lastName}
+                        </option>
+                    ))}
+                </select>
+            </div>
+        );
+    };
 
     return (
         <div className="w-screen min-h-screen bg-gray-100 p-4">
@@ -508,32 +536,7 @@ function Schedule() {
                                     className="w-full p-2 border rounded"
                                 />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Assignment</h3>
-                                {userData.isAdmin ? (
-                                    <select
-                                        name="assignTo"
-                                        value={newEvent.assignTo}
-                                        onChange={handleInputChange}
-                                        className="w-full p-2 border rounded"
-                                    >
-                                        <option value="">Select a worker</option>
-                                        {users.map(user => (
-                                            <option key={user.id} value={user.firstName}>
-                                                {user.firstName} {user.lastName}
-                                            </option>
-                                        ))}
-                                    </select>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        name="assignTo"
-                                        value={newEvent.assignTo}
-                                        readOnly
-                                        className="w-full p-2 border rounded bg-gray-100"
-                                    />
-                                )}
-                            </div>
+                            {renderWorkerDropdown()}
                             <div>
                                 <h3 className="text-lg font-semibold mb-2">Maintenance</h3>
                                 <div className="mb-2">
@@ -655,7 +658,13 @@ function Schedule() {
             )}
             {showUpdateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto">
-                    <div className="bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative">
+                    <div className={`bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
+                        {userData.isAdmin && (
+                            <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-t-lg mb-4">
+                                <p className="font-bold">Admin Mode</p>
+                                <p className="text-sm">You can reassign this event to any worker.</p>
+                            </div>
+                        )}
                         <button
                             onClick={() => setShowUpdateModal(false)}
                             className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
@@ -712,14 +721,7 @@ function Schedule() {
                                 placeholder="Condition"
                                 className="w-full p-2 border rounded"
                             />
-                            <input
-                                type="text"
-                                name="assignTo"
-                                value={newEvent.assignTo}
-                                onChange={handleInputChange}
-                                placeholder="Assign To"
-                                className="w-full p-2 border rounded"
-                            />
+                            {renderWorkerDropdown()}
                             <input
                                 type="date"
                                 name="lastMaintenanceDate"
