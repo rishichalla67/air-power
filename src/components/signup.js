@@ -38,7 +38,13 @@ export default function Signup() {
       setError("");
       setLoading(true);
       const { email, password, ...userData } = formData;
-      await signup(email, password, userData);
+      
+      // Remove empty fields
+      const cleanedUserData = Object.fromEntries(
+        Object.entries(userData).filter(([_, v]) => v !== '')
+      );
+
+      await signup(email, password, cleanedUserData);
       navigate("/");
     } catch (error) {
       setError("Failed to create an account: " + error.message);

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, db, getUserData } from '../firebase';
 import { User } from '../Classes/User';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
@@ -43,25 +45,22 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
-  const signup = async (formData) => {
+  const signup = async (email, password, userData) => {
     try {
-      // Extract email and password from formData
-      const { email, password, ...otherData } = formData;
-
       // Create user with Firebase Auth
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       // Create user document in Firestore using the User class
       const newUser = User(user.uid);
-      Object.assign(newUser, otherData);
+      Object.assign(newUser, userData);
       newUser.email = email; // Ensure email is set correctly
 
-      await db.collection('users').doc(user.uid).set(newUser);
+      await setDoc(doc(db, 'users', user.uid), newUser);
 
       // Fetch the newly created user data
-      const userData = await getUserData(user.uid);
-      setUserData(userData);
+      const createdUserData = await getUserData(user.uid);
+      setUserData(createdUserData);
 
       return user;
     } catch (error) {
