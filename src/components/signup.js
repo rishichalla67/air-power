@@ -39,9 +39,11 @@ export default function Signup() {
       setLoading(true);
       const { email, password, ...userData } = formData;
       
-      // Remove empty fields
+      // Remove empty address fields
       const cleanedUserData = Object.fromEntries(
-        Object.entries(userData).filter(([_, v]) => v !== '')
+        Object.entries(userData).filter(([key, value]) => 
+          !['street', 'city', 'state', 'postalCode', 'country'].includes(key) || value !== ''
+        )
       );
 
       await signup(email, password, cleanedUserData);
@@ -57,7 +59,7 @@ export default function Signup() {
       <div className="max-w-2xl w-full space-y-8 bg-white p-10 rounded-xl shadow-md">
         <div>
           <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            Onboard New Worker
+            Create an Account
           </h2>
         </div>
         {error && (
@@ -70,8 +72,8 @@ export default function Signup() {
           <div className="rounded-md shadow-sm -space-y-px">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Personal Information</h3>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <InputField name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} />
-              <InputField name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} />
+              <InputField name="firstName" placeholder="First Name" value={formData.firstName} onChange={handleChange} required />
+              <InputField name="lastName" placeholder="Last Name" value={formData.lastName} onChange={handleChange} required />
             </div>
             <InputField 
               name="email" 
@@ -80,20 +82,22 @@ export default function Signup() {
               value={formData.email} 
               onChange={handleChange} 
               autoComplete="off" 
+              required
             />
             <InputField 
               name="password" 
-              type="text" 
-              placeholder="Temporary Password" 
+              type="password" 
+              placeholder="Password" 
               value={formData.password} 
               onChange={handleChange} 
               autoComplete="off" 
+              required
             />
-            <InputField name="employeeID" placeholder="Employee ID" value={formData.employeeID} onChange={handleChange} />
+            <InputField name="employeeID" placeholder="Employee ID" value={formData.employeeID} onChange={handleChange} required />
           </div>
 
           <div className="rounded-md shadow-sm -space-y-px mt-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Address</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Address (Optional)</h3>
             <InputField name="street" placeholder="Street Address" value={formData.street} onChange={handleChange} />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <InputField name="city" placeholder="City" value={formData.city} onChange={handleChange} />
@@ -125,7 +129,7 @@ export default function Signup() {
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               disabled={loading}
             >
-              {loading ? "Creating..." : "Create User"}
+              {loading ? "Creating..." : "Sign Up"}
             </button>
           </div>
         </form>
@@ -134,17 +138,17 @@ export default function Signup() {
   );
 }
 
-function InputField({ name, type = "text", placeholder, value, onChange, autoComplete }) {
+function InputField({ name, type = "text", placeholder, value, onChange, autoComplete, required }) {
   return (
     <div className="mb-4">
       <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
-        {placeholder}
+        {placeholder} {required && <span className="text-red-500">*</span>}
       </label>
       <input
         id={name}
         name={name}
         type={type}
-        required
+        required={required}
         className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
         placeholder={placeholder}
         value={value}

@@ -10,7 +10,7 @@ admin.initializeApp();
 //   response.send("Hello from Firebase!");
 // });
 
-exports.createUser = functions.https.onCall(async (data, context) => {
+exports.createUser = functions.https.onCall(function(data, context) {
   // Check if the request is made by an admin
   if (!context.auth || !context.auth.token.admin) {
     throw new functions.https.HttpsError('permission-denied', 'Only admins can create new users.');
@@ -18,22 +18,21 @@ exports.createUser = functions.https.onCall(async (data, context) => {
 
   const { email, password, userData } = data;
 
-  try {
-    // Create the user
-    const userRecord = await admin.auth().createUser({
-      email: email,
-      password: password,
-    });
-
+  return admin.auth().createUser({
+    email: email,
+    password: password,
+  })
+  .then(function(userRecord) {
     // Store additional user data in Firestore
-    await admin.firestore().collection('users').doc(userRecord.uid).set(userData);
-
-    // Send welcome email (implement this part)
-    // await sendWelcomeEmail(email, password);
-
-    return { success: true, uid: userRecord.uid };
-  } catch (error) {
+    return admin.firestore().collection('users').doc(userRecord.uid).set(userData)
+      .then(function() {
+        // Send welcome email (implement this part)
+        // return sendWelcomeEmail(email, password);
+        return { success: true, uid: userRecord.uid };
+      });
+  })
+  .catch(function(error) {
     console.error('Error creating new user:', error);
     throw new functions.https.HttpsError('internal', 'Error creating new user');
-  }
+  });
 });

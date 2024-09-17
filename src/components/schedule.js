@@ -57,7 +57,8 @@ function EventItem({ event, onDelete, onEdit }) {
 function Schedule() {
     const { currentUser, userData } = useAuth();
     const [date, setDate] = useState(new Date());
-    const [events, setEvents] = useState([]);
+    const [allEvents, setAllEvents] = useState([]);
+    const [userEvents, setUserEvents] = useState([]);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -88,25 +89,36 @@ function Schedule() {
         const eventsCollection = collection(db, 'events');
         const usersCollection = collection(db, 'users');
 
-        let eventsQuery;
-        if (userData.isAdmin) {
-            eventsQuery = query(eventsCollection, orderBy('date'));
-        } else {
-            eventsQuery = query(
+        // Query for all events (for the calendar)
+        const allEventsQuery = query(eventsCollection, orderBy('date'));
+        
+        // Query for user-specific events (for the list below the calendar)
+        const userEventsQuery = userData.isAdmin
+            ? allEventsQuery
+            : query(
                 eventsCollection,
                 where("assignTo", "==", currentUser.displayName || currentUser.email),
                 orderBy('date')
             );
-        }
 
-        const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+        const unsubscribeAllEvents = onSnapshot(allEventsQuery, (snapshot) => {
             const fetchedEvents = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
             }));
-            setEvents(fetchedEvents);
+            setAllEvents(fetchedEvents);
         }, (error) => {
-            console.error("Error fetching events: ", error);
+            console.error("Error fetching all events: ", error);
+        });
+
+        const unsubscribeUserEvents = onSnapshot(userEventsQuery, (snapshot) => {
+            const fetchedEvents = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+            }));
+            setUserEvents(fetchedEvents);
+        }, (error) => {
+            console.error("Error fetching user events: ", error);
         });
 
         const fetchUsers = async () => {
@@ -120,10 +132,13 @@ function Schedule() {
 
         fetchUsers();
 
-        return () => unsubscribeEvents();
+        return () => {
+            unsubscribeAllEvents();
+            unsubscribeUserEvents();
+        };
     }, [currentUser, userData]);
 
-    const sortedEvents = events.sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sortedEvents = userEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
     const completedEvents = sortedEvents.filter(event => event.completed);
     const upcomingEvents = sortedEvents.filter(event => !event.completed && new Date(event.date) >= new Date());
     const draftEvents = sortedEvents.filter(event => !event.completed && new Date(event.date) < new Date());
@@ -143,7 +158,7 @@ function Schedule() {
 
     const handleDateSingleClick = (date) => {
         setSelectedDate(date);
-        const dayEvents = events.filter(event => 
+        const dayEvents = allEvents.filter(event => 
             new Date(event.date).toDateString() === date.toDateString()
         );
         setSelectedEvents(dayEvents);
@@ -266,7 +281,6 @@ function Schedule() {
         if (eventToDelete) {
             try {
                 await deleteDoc(doc(db, 'events', eventToDelete.id));
-                setEvents(events.filter(event => event.id !== eventToDelete.id));
                 setShowConfirmModal(false);
                 setEventToDelete(null);
                 showNotification('Event deleted successfully', 'success');
@@ -370,6 +384,12 @@ function Schedule() {
 
     return (
         <div className="w-screen min-h-screen bg-gray-100 p-4">
+            {userData.isAdmin && (
+                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+                    <p className="font-bold">Admin View</p>
+                    <p>You are currently viewing admin-only content.</p>
+                </div>
+            )}
             <div className="w-full sm:w-[95%] mx-auto">
                 <div className="bg-white rounded-lg shadow p-6 mb-6">
                     <Calendar
@@ -378,7 +398,7 @@ function Schedule() {
                         onClickDay={handleDateClick}
                         tileContent={({ date, view }) => {
                             if (view === 'month') {
-                                const dayEvents = events.filter(event => 
+                                const dayEvents = allEvents.filter(event => 
                                     new Date(event.date).toDateString() === date.toDateString()
                                 );
                                 return (
@@ -397,9 +417,16 @@ function Schedule() {
                     />
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-2xl font-bold mb-4">
-                        {userData.isAdmin ? "All Events" : "Your Events"}
+                <div className={`bg-white rounded-lg shadow p-6 ${userData.isAdmin ? 'border-2 border-blue-500' : ''}`}>
+                    <h2 className="text-2xl font-bold mb-4 flex items-center">
+                        {userData.isAdmin ? (
+                            <>
+                                <span className="mr-2">All Events</span>
+                                <span className="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">Admin</span>
+                            </>
+                        ) : (
+                            "Your Events"
+                        )}
                     </h2>
                     {renderEventList(upcomingEvents, "Upcoming Events")}
                     {renderEventList(draftEvents, "Draft Events")}
@@ -409,7 +436,13 @@ function Schedule() {
 
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto">
-                    <div className="bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative">
+                    <div className={`bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-4xl max-h-[90vh] overflow-y-auto relative ${userData.isAdmin ? 'border-4 border-blue-500' : ''}`}>
+                        {userData.isAdmin && (
+                            <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-t-lg mb-4">
+                                <p className="font-bold">Admin Mode</p>
+                                <p className="text-sm">You can assign this event to any worker.</p>
+                            </div>
+                        )}
                         <button
                             onClick={() => setShowCreateModal(false)}
                             className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
