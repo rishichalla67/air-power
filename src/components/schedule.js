@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { firestore } from '../firebase';
+import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { TrashIcon, PencilIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -82,7 +82,7 @@ function Schedule() {
     const clickTimeoutRef = useRef(null);
 
     useEffect(() => {
-        const eventsCollection = collection(firestore, 'events');
+        const eventsCollection = collection(db, 'events');
 
         const unsubscribe = onSnapshot(eventsCollection, (snapshot) => {
             const fetchedEvents = snapshot.docs.map(doc => ({
@@ -175,7 +175,7 @@ function Schedule() {
         e.preventDefault();
         if (newEvent.title) {
             try {
-                const eventsCollection = collection(firestore, 'events');
+                const eventsCollection = collection(db, 'events');
                 await addDoc(eventsCollection, {
                     ...newEvent,
                     date: selectedDate.toISOString(),
@@ -198,7 +198,7 @@ function Schedule() {
     const handleDeleteConfirm = async () => {
         if (eventToDelete) {
             try {
-                await deleteDoc(doc(firestore, 'events', eventToDelete.id));
+                await deleteDoc(doc(db, 'events', eventToDelete.id));
                 setSelectedEvents(selectedEvents.filter(event => event.id !== eventToDelete.id));
                 setShowConfirmModal(false);
                 setEventToDelete(null);
@@ -245,7 +245,7 @@ function Schedule() {
         e.preventDefault();
         if (eventToUpdate && newEvent.title) {
             try {
-                const eventRef = doc(firestore, 'events', eventToUpdate.id);
+                const eventRef = doc(db, 'events', eventToUpdate.id);
                 await updateDoc(eventRef, {
                     ...newEvent,
                     date: selectedDate.toISOString(),

@@ -18,9 +18,11 @@ function Landing() {
 
       <main className="container mx-auto mt-8 px-4">
         <section className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-3xl font-bold text-center mb-4 text-red-500">FREE ESTIMATES</h2>
-          <p className="text-center text-xl">On Replacement Systems</p>
-          <p className="text-center text-xl">Service All Brands • Same Day Service</p>
+          <h2 className="text-3xl font-bold text-center text-red-500">FREE ESTIMATES</h2>
+          <p className="text-3xl font-bold text-center mb-4 text-red-500">On Replacement Systems</p>
+          <p className="text-center text-xl">We Service All Brands • With Same Day Service</p>
+          {/* <p className="text-center text-xl">Service, Repairs, Insulation, Maintenance</p> */}
+          <p className="text-right text-md">CAC 1815504</p>
         </section>
 
         {/* <nav className="flex justify-center space-x-4 mb-8">
@@ -88,6 +90,7 @@ function Landing() {
 
       <footer className="bg-blue-800 text-white mt-8 py-4">
         <div className="container mx-auto text-center">
+          <p>Started and Founded by Kenneth L. Crutcher</p>
           <p>&copy; 2023 Air Power Heating & Air Conditioning. All rights reserved.</p>
         </div>
       </footer>

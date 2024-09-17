@@ -11,7 +11,7 @@ function Nav() {
     return (
         <nav className="bg-blue-900 p-4">
             <div className="container mx-auto flex justify-between items-center">
-                <Link to="/" className="text-white text-2xl font-bold">A.P.H. & AC</Link>
+                <Link to="/" className="text-white text-2xl font-bold">AP</Link>
                 
                 {/* Hamburger menu for mobile */}
                 <div className="md:hidden">
