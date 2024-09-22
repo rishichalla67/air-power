@@ -3,8 +3,9 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { TrashIcon, PencilIcon, XMarkIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PencilIcon, XMarkIcon, InformationCircleIcon, CalendarIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
+import { format, parseISO, addDays } from 'date-fns';
 
 // Notification component
 function Notification({ message, type, onClose }) {
@@ -70,6 +71,7 @@ function Schedule() {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [newEvent, setNewEvent] = useState({
         title: '',
+        time: '',
         address: '',
         buildingNumber: '',
         officeNumber: '',
@@ -86,9 +88,131 @@ function Schedule() {
     const [eventToDelete, setEventToDelete] = useState(null);
     const [eventToUpdate, setEventToUpdate] = useState(null);
     const [notification, setNotification] = useState(null);
+    const [showEventDetailsModal, setShowEventDetailsModal] = useState(false);
+    const [selectedEventDetails, setSelectedEventDetails] = useState(null);
     const clickTimeoutRef = useRef(null);
     const [users, setUsers] = useState([]);
+    const [showMoveEventModal, setShowMoveEventModal] = useState(false);
+    const [eventToMove, setEventToMove] = useState(null);
+    const [newEventDate, setNewEventDate] = useState('');
 
+    const renderUpdateForm = () => {
+        const isAdmin = userData.isAdmin;
+        return (
+            <form onSubmit={handleUpdate} className="space-y-4">
+                <input
+                    type="text"
+                    name="title"
+                    value={newEvent.title}
+                    onChange={handleInputChange}
+                    placeholder="Event Title"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="time"
+                    name="time"
+                    value={newEvent.time}
+                    onChange={handleInputChange}
+                    placeholder="Time"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="text"
+                    name="address"
+                    value={newEvent.address}
+                    onChange={handleInputChange}
+                    placeholder="Address"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="text"
+                    name="buildingNumber"
+                    value={newEvent.buildingNumber}
+                    onChange={handleInputChange}
+                    placeholder="Building #"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="text"
+                    name="officeNumber"
+                    value={newEvent.officeNumber}
+                    onChange={handleInputChange}
+                    placeholder="Office #"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="text"
+                    name="filterSize"
+                    value={newEvent.filterSize}
+                    onChange={handleInputChange}
+                    placeholder="Filter Size"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                <input
+                    type="text"
+                    name="condition"
+                    value={newEvent.condition}
+                    onChange={handleInputChange}
+                    placeholder="Condition"
+                    className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={!isAdmin}
+                />
+                {isAdmin && renderWorkerDropdown()}
+                <input
+                    type="date"
+                    name="lastMaintenanceDate"
+                    value={newEvent.lastMaintenanceDate}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border rounded"
+                />
+                <input
+                    type="number"
+                    name="maintenanceFrequency"
+                    value={newEvent.maintenanceFrequency}
+                    onChange={handleInputChange}
+                    placeholder="Maintenance Frequency (In Days)"
+                    className="w-full p-2 border rounded"
+                />
+                <div className="w-full p-2 border rounded bg-gray-100">
+                    <label className="block text-sm font-medium text-gray-700">Next Maintenance Date</label>
+                    <input
+                        type="date"
+                        name="nextMaintenanceDate"
+                        value={newEvent.nextMaintenanceDate}
+                        readOnly
+                        className="w-full bg-gray-100"
+                    />
+                </div>
+                <div className="flex items-center">
+                    <input
+                        type="checkbox"
+                        name="completed"
+                        checked={newEvent.completed}
+                        onChange={handleInputChange}
+                        className="mr-2"
+                    />
+                    <label htmlFor="completed">Completed</label>
+                </div>
+                <textarea
+                    name="notes"
+                    value={newEvent.notes}
+                    onChange={handleInputChange}
+                    placeholder="Notes"
+                    className="w-full p-2 border rounded h-24"
+                />
+                <div className="flex justify-end space-x-2">
+                    <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Update Event</button>
+                    <button type="button" onClick={handleUpdateModalClose} className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">Cancel</button>
+                </div>
+            </form>
+        );
+    };
     useEffect(() => {
         const eventsCollection = collection(db, 'events');
         const usersCollection = collection(db, 'users');
@@ -147,7 +271,6 @@ function Schedule() {
     const sortedEvents = userEvents.sort((a, b) => new Date(a.date) - new Date(b.date));
     const completedEvents = sortedEvents.filter(event => event.completed);
     const upcomingEvents = sortedEvents.filter(event => !event.completed && new Date(event.date) >= new Date());
-    const draftEvents = sortedEvents.filter(event => !event.completed && new Date(event.date) < new Date());
 
     const handleDateClick = (date) => {
         if (clickTimeoutRef.current) {
@@ -162,6 +285,11 @@ function Schedule() {
         }
     };
 
+    const handleCreateFromDetails = () => {
+        setShowDetailsModal(false);
+        setShowCreateModal(true);
+    };
+
     const handleDateSingleClick = (date) => {
         setSelectedDate(date);
         const dayEvents = allEvents.filter(event => 
@@ -173,6 +301,10 @@ function Schedule() {
 
     const handleDateDoubleClick = (date) => {
         setSelectedDate(date);
+        setNewEvent(prev => ({
+            ...prev,
+            time: format(new Date(), 'HH:mm')
+        }));
         setShowCreateModal(true);
     };
 
@@ -180,6 +312,7 @@ function Schedule() {
         setShowCreateModal(false);
         setNewEvent({
             title: '',
+            time: '',
             address: '',
             buildingNumber: '',
             officeNumber: '',
@@ -262,7 +395,7 @@ function Schedule() {
                 const eventsCollection = collection(db, 'events');
                 const baseEvent = {
                     ...newEvent,
-                    date: selectedDate.toISOString(),
+                    date: selectedDate.toISOString().split('T')[0], // Use selectedDate for the event date
                     assignTo: userData.isAdmin ? newEvent.assignTo : {
                         firstName: userData.firstName,
                         lastName: userData.lastName
@@ -288,12 +421,19 @@ function Schedule() {
         setShowConfirmModal(true);
     };
 
+    const handleEventClick = (event) => {
+        setSelectedEventDetails(event);
+        setShowEventDetailsModal(true);
+    };
+
+
     const handleDeleteConfirm = async () => {
         if (eventToDelete) {
             try {
                 await deleteDoc(doc(db, 'events', eventToDelete.id));
                 setShowConfirmModal(false);
                 setEventToDelete(null);
+                setShowEventDetailsModal(false); // Close the event details modal
                 showNotification('Event deleted successfully', 'success');
             } catch (error) {
                 console.error("Error deleting event: ", error);
@@ -371,28 +511,17 @@ function Schedule() {
             {eventList.length > 0 ? (
                 <ul className="space-y-4">
                     {eventList.map(event => (
-                        <li key={event.id} className="bg-white rounded-lg shadow p-4">
+                        <li key={event.id} className="bg-white rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50" onClick={() => handleEventClick(event)}>
                             <h4 className="text-lg font-semibold">{event.title}</h4>
-                            <p className="text-gray-600">{new Date(event.date).toLocaleDateString()}</p>
+                            <p className="text-gray-600">
+                                {format(new Date(event.date), 'MMM d, yyyy')}
+                                {event.time && ` at ${event.time}`}
+                            </p>
                             <p className="text-gray-600">Assigned to: {
                                 event.assignTo && typeof event.assignTo === 'object' 
                                     ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
                                     : event.assignTo || 'Not assigned'
                             }</p>
-                            <div className="mt-2">
-                                <button
-                                    onClick={() => handleEditClick(event)}
-                                    className="text-blue-500 hover:text-blue-700 mr-2"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteClick(event)}
-                                    className="text-red-500 hover:text-red-700"
-                                >
-                                    Delete
-                                </button>
-                            </div>
                         </li>
                     ))}
                 </ul>
@@ -425,6 +554,40 @@ function Schedule() {
                 </select>
             </div>
         );
+    };
+    
+    const handleMoveEventClick = (event) => {
+        setEventToMove(event);
+        // Adjust the date when setting it
+        setNewEventDate(format(new Date(event.date), 'yyyy-MM-dd'));
+        setShowMoveEventModal(true);
+        setShowEventDetailsModal(false);
+    };
+
+    const handleMoveEventSubmit = async (e) => {
+        e.preventDefault();
+        if (eventToMove && newEventDate) {
+            try {
+                const eventRef = doc(db, 'events', eventToMove.id);
+                // Adjust the date when storing it
+                const adjustedDate = format(addDays(parseISO(newEventDate), 1), 'yyyy-MM-dd');
+                await updateDoc(eventRef, { date: adjustedDate });
+                setShowMoveEventModal(false);
+                setEventToMove(null);
+                setNewEventDate('');
+                showNotification('Event moved successfully', 'success');
+            } catch (error) {
+                console.error("Error moving event: ", error);
+                showNotification('Error moving event', 'error');
+            }
+        }
+    };
+    
+    const handleMoveDate = (event) => {
+        setEventToMove(event);
+        setNewEventDate(format(new Date(event.date), 'yyyy-MM-dd'));
+        setShowMoveEventModal(true);
+        setShowDetailsModal(false);
     };
 
     return (
@@ -474,15 +637,11 @@ function Schedule() {
                         )}
                     </h2>
                     {renderEventList(
-                        userData.isAdmin ? allEvents.filter(event => !event.completed && new Date(event.date) >= new Date()) : userEvents.filter(event => !event.completed && new Date(event.date) >= new Date()),
+                        userData.isAdmin ? allEvents.filter(event => !event.completed && new Date(event.date) >= new Date()) : upcomingEvents,
                         "Upcoming Events"
                     )}
                     {renderEventList(
-                        userData.isAdmin ? allEvents.filter(event => !event.completed && new Date(event.date) < new Date()) : userEvents.filter(event => !event.completed && new Date(event.date) < new Date()),
-                        "Draft Events"
-                    )}
-                    {renderEventList(
-                        userData.isAdmin ? allEvents.filter(event => event.completed) : userEvents.filter(event => event.completed),
+                        userData.isAdmin ? allEvents.filter(event => event.completed) : completedEvents,
                         "Completed Events"
                     )}
                 </div>
@@ -513,6 +672,13 @@ function Schedule() {
                                     value={newEvent.title}
                                     onChange={handleInputChange}
                                     placeholder="Event Title"
+                                    className="w-full p-2 border rounded mb-2"
+                                />
+                                <input
+                                    type="time"
+                                    name="time"
+                                    value={newEvent.time}
+                                    onChange={handleInputChange}
                                     className="w-full p-2 border rounded"
                                 />
                             </div>
@@ -653,18 +819,68 @@ function Schedule() {
                         {selectedEvents.length > 0 ? (
                             <ul className="list-none p-0">
                                 {selectedEvents.map(event => (
-                                    <EventItem key={event.id} event={event} onDelete={handleDeleteClick} onEdit={handleEditClick} />
+                                    <li key={event.id} className="mb-8 p-4 bg-white rounded-lg shadow">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="text-xl font-bold">{event.title}</h3>
+                                            <div>
+                                                <button
+                                                    onClick={() => handleMoveDate(event)}
+                                                    className="text-yellow-500 hover:text-yellow-700 mr-2"
+                                                    title="Move Date"
+                                                >
+                                                    <CalendarIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEditClick(event)}
+                                                    className="text-blue-500 hover:text-blue-700 mr-2"
+                                                    title="Edit"
+                                                >
+                                                    <PencilIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteClick(event)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                    title="Delete"
+                                                >
+                                                    <TrashIcon className="h-5 w-5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p><strong>Address:</strong> {event.address}</p>
+                                        <p><strong>Building #:</strong> {event.buildingNumber}</p>
+                                        <p><strong>Office #:</strong> {event.officeNumber}</p>
+                                        <p><strong>Filter Size:</strong> {event.filterSize}</p>
+                                        <p><strong>Condition:</strong> {event.condition}</p>
+                                        <p><strong>Assigned To:</strong> {
+                                            event.assignTo && typeof event.assignTo === 'object' 
+                                                ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
+                                                : event.assignTo || 'Not assigned'
+                                        }</p>
+                                        <p><strong>Last Maintenance Date:</strong> {event.lastMaintenanceDate}</p>
+                                        <p><strong>Maintenance Frequency:</strong> {event.maintenanceFrequency} days</p>
+                                        <p><strong>Next Maintenance Date:</strong> {event.nextMaintenanceDate}</p>
+                                        <p><strong>Completed:</strong> {event.completed ? 'Yes' : 'No'}</p>
+                                        <p><strong>Notes:</strong> {event.notes}</p>
+                                    </li>
                                 ))}
                             </ul>
                         ) : (
                             <p>No events for this date.</p>
                         )}
-                        <button onClick={handleDetailsModalClose} className="mt-4 px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">Close</button>
+                        <div className="flex justify-between items-center mt-4">
+                            <button onClick={handleDetailsModalClose} className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">Close</button>
+                            <button 
+                                onClick={handleCreateFromDetails}
+                                className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 focus:outline-none"
+                            >
+                                <span className="text-2xl">+</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
             {showConfirmModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
                     <div className="bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-md relative">
                         <button
                             onClick={handleDeleteCancel}
@@ -698,101 +914,71 @@ function Schedule() {
                             <XMarkIcon className="h-6 w-6" />
                         </button>
                         <h2 className="text-xl mb-4">Update Event for {selectedDate ? selectedDate.toDateString() : 'Selected Date'}</h2>
-                        <form onSubmit={handleUpdate} className="space-y-4">
-                            <input
-                                type="text"
-                                name="title"
-                                value={newEvent.title}
-                                onChange={handleInputChange}
-                                placeholder="Event Title"
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="address"
-                                value={newEvent.address}
-                                onChange={handleInputChange}
-                                placeholder="Address"
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="buildingNumber"
-                                value={newEvent.buildingNumber}
-                                onChange={handleInputChange}
-                                placeholder="Building #"
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="officeNumber"
-                                value={newEvent.officeNumber}
-                                onChange={handleInputChange}
-                                placeholder="Office #"
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="filterSize"
-                                value={newEvent.filterSize}
-                                onChange={handleInputChange}
-                                placeholder="Filter Size"
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="text"
-                                name="condition"
-                                value={newEvent.condition}
-                                onChange={handleInputChange}
-                                placeholder="Condition"
-                                className="w-full p-2 border rounded"
-                            />
-                            {renderWorkerDropdown()}
-                            <input
-                                type="date"
-                                name="lastMaintenanceDate"
-                                value={newEvent.lastMaintenanceDate}
-                                onChange={handleInputChange}
-                                className="w-full p-2 border rounded"
-                            />
-                            <input
-                                type="number"
-                                name="maintenanceFrequency"
-                                value={newEvent.maintenanceFrequency}
-                                onChange={handleInputChange}
-                                placeholder="Maintenance Frequency (In Days)"
-                                className="w-full p-2 border rounded"
-                            />
-                            <div className="w-full p-2 border rounded bg-gray-100">
-                                <label className="block text-sm font-medium text-gray-700">Next Maintenance Date</label>
+                        {renderUpdateForm()}
+                    </div>
+                </div>
+            )}
+            {showEventDetailsModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto z-40">
+                    <div className="bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-2xl max-h-[90vh] overflow-y-auto relative">
+                        <button
+                            onClick={() => setShowEventDetailsModal(false)}
+                            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                        <h2 className="text-2xl font-bold mb-4">{selectedEventDetails.title}</h2>
+                        <div className="space-y-2">
+                            <p><strong>Date:</strong> {format(new Date(selectedEventDetails.date), 'MMM d, yyyy')}</p>
+                            <p><strong>Time:</strong> {selectedEventDetails.time || 'Not specified'}</p>
+                            <p><strong>Address:</strong> {selectedEventDetails.address}</p>
+                            <p><strong>Building #:</strong> {selectedEventDetails.buildingNumber}</p>
+                            <p><strong>Office #:</strong> {selectedEventDetails.officeNumber}</p>
+                            <p><strong>Filter Size:</strong> {selectedEventDetails.filterSize}</p>
+                            <p><strong>Condition:</strong> {selectedEventDetails.condition}</p>
+                            <p><strong>Assigned To:</strong> {
+                                selectedEventDetails.assignTo && typeof selectedEventDetails.assignTo === 'object' 
+                                    ? `${selectedEventDetails.assignTo.firstName} ${selectedEventDetails.assignTo.lastName}`.trim() 
+                                    : selectedEventDetails.assignTo || 'Not assigned'
+                            }</p>
+                            <p><strong>Last Maintenance Date:</strong> {selectedEventDetails.lastMaintenanceDate}</p>
+                            <p><strong>Maintenance Frequency:</strong> {selectedEventDetails.maintenanceFrequency} days</p>
+                            <p><strong>Next Maintenance Date:</strong> {selectedEventDetails.nextMaintenanceDate}</p>
+                            <p><strong>Completed:</strong> {selectedEventDetails.completed ? 'Yes' : 'No'}</p>
+                            <p><strong>Notes:</strong> {selectedEventDetails.notes}</p>
+                        </div>
+                        <div className="mt-6 flex justify-end space-x-2">
+                            <button onClick={() => handleMoveEventClick(selectedEventDetails)} className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">Move Event</button>
+                            <button onClick={() => handleEditClick(selectedEventDetails)} className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Edit</button>
+                            <button onClick={() => handleDeleteClick(selectedEventDetails)} className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showMoveEventModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center overflow-y-auto z-50">
+                    <div className="bg-white p-5 rounded-lg w-full sm:w-[95%] max-w-md relative">
+                        <button
+                            onClick={() => setShowMoveEventModal(false)}
+                            className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                        <h2 className="text-xl mb-4">Move Event</h2>
+                        <form onSubmit={handleMoveEventSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">New Date</label>
                                 <input
                                     type="date"
-                                    name="nextMaintenanceDate"
-                                    value={newEvent.nextMaintenanceDate}
-                                    readOnly
-                                    className="w-full bg-gray-100"
+                                    value={newEventDate}
+                                    onChange={(e) => setNewEventDate(e.target.value)}
+                                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                                    min={format(new Date(), 'yyyy-MM-dd')}
                                 />
                             </div>
-                            <div className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="completed"
-                                    checked={newEvent.completed}
-                                    onChange={handleInputChange}
-                                    className="mr-2"
-                                />
-                                <label htmlFor="completed">Completed</label>
-                            </div>
-                            <textarea
-                                name="notes"
-                                value={newEvent.notes}
-                                onChange={handleInputChange}
-                                placeholder="Notes"
-                                className="w-full p-2 border rounded h-24"
-                            />
                             <div className="flex justify-end space-x-2">
-                                <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Update Event</button>
-                                <button type="button" onClick={handleUpdateModalClose} className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">Cancel</button>
+                                <button type="button" onClick={() => setShowMoveEventModal(false)} className="px-4 py-2 bg-gray-300 text-black rounded hover:bg-gray-400">Cancel</button>
+                                <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Move Event</button>
                             </div>
                         </form>
                     </div>

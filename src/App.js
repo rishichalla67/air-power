@@ -10,7 +10,7 @@ import Signup from './components/signup';
 import Schedule from './components/schedule';
 import Profile from './components/profile';
 import ForgotPassword from './components/forgotPassword';
-
+import InquiryList from './components/inquiry';
 function App() {
   return (
     <Router>
@@ -32,6 +32,14 @@ function App() {
             element={
               <PrivateRoute>
                 <Schedule />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/inquiries" 
+            element={
+              <PrivateRoute>
+                <InquiryList />
               </PrivateRoute>
             } 
           />

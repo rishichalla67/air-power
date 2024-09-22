@@ -1,17 +1,32 @@
-import React from 'react';
-import { FaPhone, FaFire, FaSnowflake } from 'react-icons/fa';
+import React, { useState } from 'react';
+import { FaPhone, FaFire, FaSnowflake, FaEnvelope } from 'react-icons/fa';
+import InquiryModal from './InquiryForm';
 
 function Landing() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
     <div className="bg-gradient-to-b from-blue-100 to-blue-300 min-h-screen">
-      <header className="bg-blue-600 text-white py-4">
+      <header className="bg-blue-600 text-white py-6 px-4">
         <div className="container mx-auto text-center">
-          <h1 className="text-5xl font-bold text-red-500 drop-shadow-lg">AIR POWER</h1>
-          <h2 className="text-3xl text-blue-300">Heating & Air Conditioning</h2>
-          <h3 className="text-2xl text-blue-300">Residential / Commercial</h3>
-          <div className="mt-2 text-3xl font-bold bg-blue-800 inline-block px-4 py-2 rounded">
-            <FaPhone className="inline mr-2" />
-            904-314-8892
+          <h1 className="text-5xl font-bold text-red-500 drop-shadow-lg mb-2">AIR POWER</h1>
+          <h2 className="text-2xl sm:text-3xl text-blue-300 mb-1">Heating & Air Conditioning</h2>
+          <h3 className="text-xl sm:text-2xl text-blue-300 mb-4">Residential / Commercial</h3>
+          <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
+            <a
+              href="tel:904-314-8892"
+              className="w-full sm:w-auto text-xl sm:text-2xl font-bold bg-blue-800 hover:bg-blue-700 transition-colors duration-300 px-6 py-3 rounded-full flex items-center justify-center"
+            >
+              <FaPhone className="mr-2" />
+              904-314-8892
+            </a>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="w-full sm:w-auto bg-green-500 hover:bg-green-600 transition-colors duration-300 text-white font-bold text-xl py-3 px-6 rounded-full flex items-center justify-center"
+            >
+              <FaEnvelope className="mr-2" />
+              Inquire Now
+            </button>
           </div>
         </div>
       </header>
@@ -91,9 +106,11 @@ function Landing() {
       <footer className="bg-blue-800 text-white mt-8 py-4">
         <div className="container mx-auto text-center">
           <p>Started and Founded by Kenneth L. Crutcher</p>
-          <p>&copy; 2023 Air Power Heating & Air Conditioning. All rights reserved.</p>
+          <p>&copy; 2006 Air Power Heating & Air Conditioning. All rights reserved.</p>
         </div>
       </footer>
+
+      <InquiryModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }
