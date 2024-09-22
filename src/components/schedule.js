@@ -6,6 +6,8 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, getDocs, que
 import { TrashIcon, PencilIcon, XMarkIcon, InformationCircleIcon, CalendarIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 import { format, parseISO, addDays } from 'date-fns';
+import { Listbox, Transition } from '@headlessui/react';
+import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid';
 
 // Notification component
 function Notification({ message, type, onClose }) {
@@ -46,9 +48,11 @@ function EventItem({ event, onDelete, onEdit }) {
             <p><strong>Filter Size:</strong> {event.filterSize}</p>
             <p><strong>Condition:</strong> {event.condition}</p>
             <p><strong>Assigned To:</strong> {
-                event.assignTo && typeof event.assignTo === 'object' 
-                    ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
-                    : event.assignTo || 'Not assigned'
+                Array.isArray(event.assignTo) 
+                    ? event.assignTo.map(worker => `${worker.firstName} ${worker.lastName}`).join(', ')
+                    : event.assignTo && typeof event.assignTo === 'object'
+                        ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim()
+                        : event.assignTo || 'Not assigned'
             }</p>
             <p><strong>Last Maintenance Date:</strong> {event.lastMaintenanceDate}</p>
             <p><strong>Maintenance Frequency:</strong> {event.maintenanceFrequency} days</p>
@@ -77,7 +81,7 @@ function Schedule() {
         officeNumber: '',
         filterSize: '',
         condition: '',
-        assignTo: { firstName: '', lastName: '' },
+        assignTo: [],
         lastMaintenanceDate: '',
         maintenanceFrequency: '',
         nextMaintenanceDate: '',
@@ -95,6 +99,7 @@ function Schedule() {
     const [showMoveEventModal, setShowMoveEventModal] = useState(false);
     const [eventToMove, setEventToMove] = useState(null);
     const [newEventDate, setNewEventDate] = useState('');
+    const [selectedWorkers, setSelectedWorkers] = useState([]);
 
     const renderUpdateForm = () => {
         const isAdmin = userData.isAdmin;
@@ -163,7 +168,12 @@ function Schedule() {
                     className={`w-full p-2 border rounded ${!isAdmin ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     readOnly={!isAdmin}
                 />
-                {isAdmin && renderWorkerDropdown()}
+                {isAdmin && (
+                    <div>
+                        <h3 className="text-lg font-semibold mb-2">Assignment</h3>
+                        {renderWorkerDropdown()}
+                    </div>
+                )}
                 <input
                     type="date"
                     name="lastMaintenanceDate"
@@ -318,13 +328,14 @@ function Schedule() {
             officeNumber: '',
             filterSize: '',
             condition: '',
-            assignTo: { firstName: '', lastName: '' },
+            assignTo: [],
             lastMaintenanceDate: '',
             maintenanceFrequency: '',
             nextMaintenanceDate: '',
             completed: false,
             notes: ''
         });
+        setSelectedWorkers([]);
     };
 
     const handleDetailsModalClose = () => {
@@ -337,8 +348,7 @@ function Schedule() {
         setNewEvent(prev => {
             const updatedEvent = {
                 ...prev,
-                [name]: type === 'checkbox' ? checked : 
-                    name === 'assignTo' ? JSON.parse(value) : value
+                [name]: type === 'checkbox' ? checked : value
             };
 
             // Calculate next maintenance date if both last maintenance date and frequency are set
@@ -381,6 +391,7 @@ function Schedule() {
         const eventsCollection = collection(db, 'events');
         for (const event of eventsToCreate) {
             try {
+                // Use addDoc to automatically generate a unique ID for each event
                 await addDoc(eventsCollection, event);
             } catch (error) {
                 console.error("Error creating recurring event: ", error);
@@ -395,12 +406,10 @@ function Schedule() {
                 const eventsCollection = collection(db, 'events');
                 const baseEvent = {
                     ...newEvent,
-                    // Adjust the date by adding one day
                     date: format(addDays(selectedDate, 1), 'yyyy-MM-dd'),
-                    assignTo: userData.isAdmin ? newEvent.assignTo : {
-                        firstName: userData.firstName,
-                        lastName: userData.lastName
-                    },
+                    assignTo: userData.isAdmin 
+                        ? selectedWorkers 
+                        : [{ firstName: userData.firstName, lastName: userData.lastName }],
                 };
                 await addDoc(eventsCollection, baseEvent);
                 
@@ -451,6 +460,7 @@ function Schedule() {
     const handleEditClick = (event) => {
         setEventToUpdate(event);
         setNewEvent(event);
+        setSelectedWorkers(Array.isArray(event.assignTo) ? event.assignTo : [event.assignTo].filter(Boolean));
         setShowDetailsModal(false);
         setShowUpdateModal(true);
     };
@@ -465,13 +475,14 @@ function Schedule() {
             officeNumber: '',
             filterSize: '',
             condition: '',
-            assignTo: { firstName: '', lastName: '' },
+            assignTo: [],
             lastMaintenanceDate: '',
             maintenanceFrequency: '',
             nextMaintenanceDate: '',
             completed: false,
             notes: ''
         });
+        setSelectedWorkers([]);
     };
 
     const handleUpdate = async (e) => {
@@ -482,10 +493,9 @@ function Schedule() {
                 const updatedEvent = {
                     ...newEvent,
                     date: selectedDate.toISOString(),
-                    assignTo: userData.isAdmin ? newEvent.assignTo : {
-                        firstName: userData.firstName,
-                        lastName: userData.lastName
-                    },
+                    assignTo: userData.isAdmin 
+                        ? selectedWorkers 
+                        : [{ firstName: userData.firstName, lastName: userData.lastName }],
                 };
                 await updateDoc(eventRef, updatedEvent);
                 handleUpdateModalClose();
@@ -519,9 +529,11 @@ function Schedule() {
                                 {event.time && ` at ${event.time}`}
                             </p>
                             <p className="text-gray-600">Assigned to: {
-                                event.assignTo && typeof event.assignTo === 'object' 
-                                    ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
-                                    : event.assignTo || 'Not assigned'
+                                Array.isArray(event.assignTo) 
+                                    ? event.assignTo.map(worker => `${worker.firstName} ${worker.lastName}`).join(', ')
+                                    : event.assignTo && typeof event.assignTo === 'object'
+                                        ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim()
+                                        : event.assignTo || 'Not assigned'
                             }</p>
                         </li>
                     ))}
@@ -538,21 +550,61 @@ function Schedule() {
         }
 
         return (
-            <div>
-                <h3 className="text-lg font-semibold mb-2">Assignment</h3>
-                <select
-                    name="assignTo"
-                    value={JSON.stringify(newEvent.assignTo)}
-                    onChange={handleInputChange}
-                    className="w-full p-2 border rounded"
-                >
-                    <option value={JSON.stringify({ firstName: '', lastName: '' })}>Select a worker</option>
-                    {users.map(user => (
-                        <option key={user.id} value={JSON.stringify({ firstName: user.firstName, lastName: user.lastName })}>
-                            {user.firstName} {user.lastName}
-                        </option>
-                    ))}
-                </select>
+            <div className="w-full">
+                <Listbox value={selectedWorkers} onChange={setSelectedWorkers} multiple>
+                    <div className="relative mt-1">
+                        <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                            <span className="block truncate">
+                                {selectedWorkers.length === 0
+                                    ? 'Select workers'
+                                    : `${selectedWorkers.length} worker(s) selected`}
+                            </span>
+                            <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                <ChevronUpDownIcon
+                                    className="h-5 w-5 text-gray-400"
+                                    aria-hidden="true"
+                                />
+                            </span>
+                        </Listbox.Button>
+                        <Transition
+                            as={React.Fragment}
+                            leave="transition ease-in duration-100"
+                            leaveFrom="opacity-100"
+                            leaveTo="opacity-0"
+                        >
+                            <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                                {users.map((user) => (
+                                    <Listbox.Option
+                                        key={user.id}
+                                        className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                                                active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                                            }`
+                                        }
+                                        value={user}
+                                    >
+                                        {({ selected }) => (
+                                            <>
+                                                <span
+                                                    className={`block truncate ${
+                                                        selected ? 'font-medium' : 'font-normal'
+                                                    }`}
+                                                >
+                                                    {user.firstName} {user.lastName}
+                                                </span>
+                                                {selected ? (
+                                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                                        <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                                    </span>
+                                                ) : null}
+                                            </>
+                                        )}
+                                    </Listbox.Option>
+                                ))}
+                            </Listbox.Options>
+                        </Transition>
+                    </div>
+                </Listbox>
             </div>
         );
     };
@@ -734,7 +786,12 @@ function Schedule() {
                                     className="w-full p-2 border rounded"
                                 />
                             </div>
-                            {renderWorkerDropdown()}
+                            {userData.isAdmin && (
+                                <div>
+                                    <h3 className="text-lg font-semibold mb-2">Assignment</h3>
+                                    {renderWorkerDropdown()}
+                                </div>
+                            )}
                             <div>
                                 <h3 className="text-lg font-semibold mb-2">Maintenance</h3>
                                 <div className="mb-2">
@@ -858,9 +915,11 @@ function Schedule() {
                                         <p><strong>Filter Size:</strong> {event.filterSize}</p>
                                         <p><strong>Condition:</strong> {event.condition}</p>
                                         <p><strong>Assigned To:</strong> {
-                                            event.assignTo && typeof event.assignTo === 'object' 
-                                                ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim() 
-                                                : event.assignTo || 'Not assigned'
+                                            Array.isArray(event.assignTo) 
+                                                ? event.assignTo.map(worker => `${worker.firstName} ${worker.lastName}`).join(', ')
+                                                : event.assignTo && typeof event.assignTo === 'object'
+                                                    ? `${event.assignTo.firstName} ${event.assignTo.lastName}`.trim()
+                                                    : event.assignTo || 'Not assigned'
                                         }</p>
                                         <p><strong>Last Maintenance Date:</strong> {event.lastMaintenanceDate}</p>
                                         <p><strong>Maintenance Frequency:</strong> {event.maintenanceFrequency} days</p>
@@ -943,9 +1002,11 @@ function Schedule() {
                             <p><strong>Filter Size:</strong> {selectedEventDetails.filterSize}</p>
                             <p><strong>Condition:</strong> {selectedEventDetails.condition}</p>
                             <p><strong>Assigned To:</strong> {
-                                selectedEventDetails.assignTo && typeof selectedEventDetails.assignTo === 'object' 
-                                    ? `${selectedEventDetails.assignTo.firstName} ${selectedEventDetails.assignTo.lastName}`.trim() 
-                                    : selectedEventDetails.assignTo || 'Not assigned'
+                                Array.isArray(selectedEventDetails.assignTo) 
+                                    ? selectedEventDetails.assignTo.map(worker => `${worker.firstName} ${worker.lastName}`).join(', ')
+                                    : selectedEventDetails.assignTo && typeof selectedEventDetails.assignTo === 'object'
+                                        ? `${selectedEventDetails.assignTo.firstName} ${selectedEventDetails.assignTo.lastName}`.trim()
+                                        : selectedEventDetails.assignTo || 'Not assigned'
                             }</p>
                             <p><strong>Last Maintenance Date:</strong> {selectedEventDetails.lastMaintenanceDate}</p>
                             <p><strong>Maintenance Frequency:</strong> {selectedEventDetails.maintenanceFrequency} days</p>
