@@ -395,7 +395,8 @@ function Schedule() {
                 const eventsCollection = collection(db, 'events');
                 const baseEvent = {
                     ...newEvent,
-                    date: selectedDate.toISOString().split('T')[0], // Use selectedDate for the event date
+                    // Adjust the date by adding one day
+                    date: format(addDays(selectedDate, 1), 'yyyy-MM-dd'),
                     assignTo: userData.isAdmin ? newEvent.assignTo : {
                         firstName: userData.firstName,
                         lastName: userData.lastName
@@ -582,6 +583,7 @@ function Schedule() {
             }
         }
     };
+
     
     const handleMoveDate = (event) => {
         setEventToMove(event);
@@ -610,9 +612,13 @@ function Schedule() {
                                     new Date(event.date).toDateString() === date.toDateString()
                                 );
                                 return (
-                                    <ul className="list-none p-0 m-0 text-xs text-red-500">
-                                        {dayEvents.map(event => (
-                                            <li key={event.id} className="mb-0.5">
+                                    <ul className="list-none p-0 m-0 text-xs">
+                                        {dayEvents.map((event, index) => (
+                                            <li 
+                                                key={event.id} 
+                                                className={`mb-0.5 truncate ${index % 2 === 0 ? 'text-black' : 'text-gray-600'}`}
+                                                style={{maxWidth: '100%'}}
+                                            >
                                                 {event.title}
                                             </li>
                                         ))}
