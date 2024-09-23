@@ -80,7 +80,7 @@ function Nav() {
                                         Profile
                                     </Link>
                                 </li>
-                                {userData && userData.isAdmin && (
+                                {userData && (
                                     <>
                                         <li>
                                             <Link to="/signup" className="block py-2 md:py-0 px-4 md:px-0 text-white hover:text-navy-200" onClick={handleNavItemClick}>
